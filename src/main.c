@@ -57,9 +57,18 @@
 //     String a = strlit("λ");
 // }
 
+void writer_testicle(Writer *writer) {
+    writer_printf(writer, "henlo word => %s, %d, %f\n", "foobar", 69420, 1.0f);
+}
+
 int main(void) {
     printf("henlo word!\n");
     // chain_testicle();
-    floppy_testicle();
+    // floppy_testicle();
+    Writer writer = writer_new();
+    writer_testicle(&writer);
+    writer_stdout(&writer);
+    writer_deinit(&writer);
+
     return EXIT_SUCCESS;
 }
