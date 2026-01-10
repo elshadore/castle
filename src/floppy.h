@@ -3,7 +3,7 @@
 
 #include "shared.h"
 
-void floppy_testicle(void);
+void floppy_testicle(Writer *writer);
 
 #endif
 
@@ -84,30 +84,38 @@ void writer_floppy(Writer *writer, float floater) {
     }
 }
 
-void floppy_testicle(void) {
-    Writer writer = writer_new();
-    writer_puts(&writer, strlit("*~FLOPPY-TESTICLE~*\n"));
-    uint32_t test_values[] = {
-        0x3F800000,  // 1.0
-        0x40000000,  // 2.0
-        0x40490FDB,  // 3.1415927 (pi approximation)
-        0x3F99999A,  // 1.2
-        0x00000000,  // +0.0
-        0x80000000,  // -0.0
-        0x7F800000,  // +inf
-        0xFF800000,  // -inf
-    };
-    size_t length = lengthof(test_values);
-    for (size_t i = 0; i < length; ++i) {
-        float flop = *((float *)&test_values[i]);
-        writer_puts(&writer, strlit("["));
-        writer_number(&writer, i);
-        writer_puts(&writer, strlit("] => "));
-        writer_floppy(&writer, flop);
-        writer_put(&writer, '\n');
-    }
-    writer_stdout(&writer);
-    writer_deinit(&writer);
+void floppy_testicle(Writer *writer) {
+    // String test = strlit("This is a test string!");
+    float test= -1.0f;
+    Bytes bytes = bcast(test);
+    writer_newline(writer);
+    writer_hex(writer, bytes);
+    writer_newline(writer);
+    writer_binary(writer, bytes);
+    writer_newline(writer);
+    // Writer writer = writer_new();
+    // writer_puts(&writer, strlit("*~FLOPPY-TESTICLE~*\n"));
+    // uint32_t test_values[] = {
+    //     0x3F800000,  // 1.0
+    //     0x40000000,  // 2.0
+    //     0x40490FDB,  // 3.1415927 (pi approximation)
+    //     0x3F99999A,  // 1.2
+    //     0x00000000,  // +0.0
+    //     0x80000000,  // -0.0
+    //     0x7F800000,  // +inf
+    //     0xFF800000,  // -inf
+    // };
+    // size_t length = lengthof(test_values);
+    // for (size_t i = 0; i < length; ++i) {
+    //     float flop = *((float *)&test_values[i]);
+    //     writer_puts(&writer, strlit("["));
+    //     writer_number(&writer, i);
+    //     writer_puts(&writer, strlit("] => "));
+    //     writer_floppy(&writer, flop);
+    //     writer_put(&writer, '\n');
+    // }
+    // writer_stdout(&writer);
+    // writer_deinit(&writer);
 }
 
 #endif

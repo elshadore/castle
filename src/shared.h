@@ -23,19 +23,41 @@ typedef struct Writer_ {
     size_t capacity;
 } Writer;
 
+typedef enum Indianness {
+    Little_Indian,
+    Big_Indian,
+} Indianness;
+
+typedef struct WriterMemOpt_ {
+    Indianness indianness;
+    size_t padding;
+    bool prefix;
+} WriterMemOpt;
+
+#define DEFAULT_WRITER_MEMOPT (WriterMemOpt){.indianness = Little_Indian, .padding = 0, .prefix = true}
+
 #define strlit(text_) (String){.c = text_, .length = ((sizeof(text_) / sizeof(char)) - 1)}
 
 #define lengthof(array_) (sizeof(array_) / sizeof(*array_))
 
-#define bcast(array_) (Bytes){.b = (uint8_t *)array_, .length = lengthof(array_)}
+#define bcast(value_) (Bytes){.b = (uint8_t *)(&value_), .length = sizeof(value_)}
+
+#define dlog(message_, ...) fprintf(stderr, message_ "\n" __VA_OPT__(,) __VA_ARGS__)
+
+#define dpanic(message_, ...) do { \
+  fprintf(stderr, message_ "\n" __VA_OPT__(,) __VA_ARGS__); \
+  exit(69); \
+} while(0)
 
 void string_reverse_mut(String string);
 size_t grow_capacity(size_t old_capacity);
 size_t djb2_hash(String string);
+size_t index_invert(size_t index, size_t length);
 
 bool string_eq(String a, String b);
 void string_stdout(String string);
 void string_stderr(String string);
+Bytes string_to_bytes(String string);
 
 char char_to_digit(char c);
 bool char_is_digit(char c);
@@ -45,11 +67,16 @@ char char_from_digit(size_t digit);
 
 Writer writer_new(void);
 void writer_deinit(Writer *writer);
+void writer_clear(Writer *writer);
 size_t writer_curr(Writer *writer);
 void writer_put(Writer *writer, char c);
 void writer_puts(Writer *writer, String string);
 void writer_number(Writer *writer, size_t number);
-void writer_hex(Writer *writer, Bytes bytes, size_t padding);
+void writer_hex(Writer *writer, Bytes bytes);
+void writer_binary(Writer *writer, Bytes bytes);
+void writer_hex_ex(Writer *writer, Bytes bytes, WriterMemOpt opt);
+void writer_binary_ex(Writer *writer, Bytes bytes, WriterMemOpt opt);
+void writer_newline(Writer *writer);
 void writer_int(Writer *writer, int integer);
 
 void writer_stdout(Writer *writer);
@@ -90,6 +117,10 @@ size_t djb2_hash(String string) {
     return result;
 }
 
+size_t index_invert(size_t index, size_t length) {
+    return length - index - 1;
+}
+
 bool string_eq(String a, String b) {
     if (a.length != b.length) {
         return false;
@@ -108,6 +139,13 @@ void string_stdout(String string) {
 
 void string_stderr(String string) {
     fprintf(stderr, "%.*s", (int)string.length, string.c);
+}
+
+Bytes string_to_bytes(String string) {
+    return (Bytes) {
+        .b = (uint8_t *)string.c,
+        .length = string.length,
+    };
 }
 
 char char_to_digit(char c) {
@@ -209,6 +247,10 @@ void writer_deinit(Writer *writer) {
     *writer = (Writer){0};
 }
 
+void writer_clear(Writer *writer) {
+    writer->string.length = 0;
+}
+
 size_t writer_curr(Writer *writer) {
     return writer->string.length;
 }
@@ -264,21 +306,76 @@ void writer_number(Writer *writer, size_t number) {
     string_reverse_mut(rev); 
 }
 
-void writer_hex(Writer *writer, Bytes bytes, size_t padding) {
-    writer_puts(writer, strlit("0x"));
+void writer_hex_ex(Writer *writer, Bytes bytes, WriterMemOpt opt) {
+    if (opt.prefix) {
+        writer_puts(writer, strlit("0x"));
+    }
     for (size_t i = 0; i < bytes.length; ++i) {
-        uint8_t byte = bytes.b[i];
+        size_t index = i;
+        if (opt.indianness == Little_Indian) {
+            index = index_invert(i, bytes.length);
+        }
+        uint8_t byte = bytes.b[index];
         uint8_t hi = (byte >> 4) & 0x0F;
         uint8_t lo = byte & 0xF;
         writer_put(writer, char_from_hex(hi));
         writer_put(writer, char_from_hex(lo));
     }
-    if (padding > bytes.length) {
-        size_t diff = padding - bytes.length;
+    if (opt.padding > bytes.length) {
+        size_t diff = opt.padding - bytes.length;
         for (size_t i = 0; i < diff; ++i) {
             writer_puts(writer, strlit("00"));
         }
     }
+}
+
+void writer_hex(Writer *writer, Bytes bytes) {
+    writer_hex_ex(writer, bytes, DEFAULT_WRITER_MEMOPT);
+}
+
+void writer_binary_ex(Writer *writer, Bytes bytes, WriterMemOpt opt) {
+    if (opt.prefix) {
+        writer_puts(writer, strlit("0b"));
+    }
+    bool flag = false;
+    for (size_t i = 0; i < bytes.length; ++i) {
+        size_t index = i;
+        if (opt.indianness == Little_Indian) {
+            index = index_invert(i, bytes.length);
+        }
+        uint8_t byte = bytes.b[index];
+        if (flag) {
+            writer_put(writer, '_');
+        }
+        for (size_t j = 0; j < 8; ++j) {
+            size_t inv = index_invert(j, 8);
+            uint8_t bit = (byte >> inv) & 1;
+            if (bit) {
+                writer_put(writer, '1');
+            } else {
+                writer_put(writer, '0');
+            }
+        }
+        flag = true;
+    }
+    if (opt.padding > bytes.length) {
+        size_t diff = opt.padding - bytes.length;
+        for (size_t i = 0; i < diff; ++i) {
+            if (flag) {
+                writer_put(writer, '_');
+            }
+            writer_puts(writer, strlit("00000000"));
+            flag = true;
+        }
+    }
+}
+
+void writer_binary(Writer *writer, Bytes bytes) {
+    writer_binary_ex(writer, bytes, DEFAULT_WRITER_MEMOPT);
+}
+
+void writer_newline(Writer *writer) {
+    writer_put(writer, '\n');
 }
 
 void writer_int(Writer *writer, int integer) {
