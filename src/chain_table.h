@@ -51,10 +51,6 @@ Slot *slot_new(String key, int value) {
     return slot;
 }
 
-float compute_fillpc(size_t count, size_t capacity) {
-    return (float)count / (float)capacity;
-}
-
 float chain_fillpc(ChainTable *table) {
     return compute_fillpc(table->count, table->capacity);
 }

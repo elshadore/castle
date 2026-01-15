@@ -7,115 +7,107 @@ void floppy_testicle(Writer *writer);
 
 #endif
 
-
 #ifdef FLOPPY_IMPLEMENTATION
+
+#define EXP_MASK ((uint32_t)0x7F800000)
+// #define EXP_MASK ((uint32_t)0b01111111100000000000000000000000)
+
+#define SIGN_MASK ((uint32_t)0x80000000)
+// #define SIGN_MASK ((uint32_t)0b10000000000000000000000000000000)
+
+#define FRAC_MASK ((uint32_t)0x007FFFFF)
+// #define FRAC_MASK ((uint32_t)0b00000000011111111111111111111111)
+
+void writer_floppy_info(Writer *writer, float floater) {
+    uint32_t bits = *((uint32_t *)&floater);
+    writer_puts(writer, strlit("float => \n"));
+    writer_puts(writer, strlit("\tsign => "));
+    if ((bits & SIGN_MASK) != 0) {
+        writer_puts(writer, strlit("[-]\n"));
+    } else {
+        writer_puts(writer, strlit("[+]\n"));
+    }
+
+    uint32_t exponent = bits & EXP_MASK;
+    uint32_t exp_value = exponent >> 23;
+    int32_t exp = ((int32_t)exp_value) - 127;
+    writer_puts(writer, strlit("\texponent => 2^"));
+    writer_int(writer, (int)exp);
+    writer_newline(writer);
+    writer_puts(writer, strlit("\tfraction => "));
+    uint32_t frac = bits & FRAC_MASK;
+
+    size_t acc = 1;
+    size_t dec = 1;
+    for (size_t i = 0; i < 23; ++i) {
+        size_t inv = index_invert(i, 23);
+        dec *= 10;
+        dec /= 2;
+        if (frac & (1 << inv)) {
+            acc *= 10;
+            acc += dec;
+            dlog("dec => %zu, acc => %zu", dec, acc);
+        }
+    }
+    writer_number(writer, (size_t)acc);
+    writer_newline(writer);
+}
 
 void writer_floppy(Writer *writer, float floater) {
     uint32_t bits = *((uint32_t *)&floater);
-    uint32_t sign = (bits >> 31) & 0x1;
-    uint32_t exponent = (bits >> 23) & 0xFF;
-    uint32_t mantissa = bits & 0x7FFFFF;
-
-    if (exponent == 0xFF) {
-        if (mantissa == 0) {
-            if (sign) {
-                writer_put(writer, '-');
-            }
-            writer_puts(writer, strlit("inf"));
-        } else {
-            writer_puts(writer, strlit("nan"));
-            // if (mantissa = & 0x400000) {
-            //     writer_puts(writer, strlit("qNaN"));
-            // } else {
-            //     writer_puts(writer, strlit("sNaN"));
-            // }
-        }
-        return;
-    } 
-    if (sign) {
+    if ((bits & 0x80000000) != 0) {
         writer_put(writer, '-');
-    }
-    if ((exponent == 0) && (mantissa == 0)) {
-        writer_puts(writer, strlit("0.0"));
-        return;
-    } 
-    int32_t exp_value = 0;
-    if (exponent == 0) {
-        exp_value = -126;
     } else {
-        exp_value = (int32_t)exponent - 127;
-        mantissa |= 0x800000;
-    }
-    if ((exp_value >= 0) && (exp_value <= 10)) {
-        uint32_t integer_part = 0;
-        if (exponent == 0) {
-            integer_part = 0;
-        } else {
-            integer_part = 1;
-        }
-        for (int i = 0; i < exp_value; i++) {
-            integer_part = integer_part << 1;
-            if (mantissa & 0x800000) {
-                integer_part |= 1;
-            }
-            mantissa = mantissa << 1;
-        }
-        float fraction_part = 0.0;
-        uint32_t temp_mantissa = mantissa;
-        for (int i = 0; i < 23; i++) {
-            fraction_part /= 2.0;
-            if (temp_mantissa & 0x800000) {
-                fraction_part += 0.5;
-            }
-            temp_mantissa <<= 1;
-        }
-        writer_number(writer, (size_t)integer_part);
-        writer_put(writer, '.');
-
-        int frac_int = (int)(fraction_part * 1000000);
-
-        if (frac_int == 0) {
-            writer_put(writer, '0');
-        } else {
-            writer_int(writer, frac_int);
-        }
-    } else {
-        writer_puts(writer, strlit("1."));
+        writer_put(writer, '+');
     }
 }
 
-void floppy_testicle(Writer *writer) {
-    // String test = strlit("This is a test string!");
-    float test= -1.0f;
-    Bytes bytes = bcast(test);
+void floppy_foop(Writer *writer, float floater) {
+    writer_puts(writer, strlit("FLOAT => "));
+    writer_printf(writer, "%f", floater);
     writer_newline(writer);
+    Bytes bytes = bcast(floater);
     writer_hex(writer, bytes);
     writer_newline(writer);
     writer_binary(writer, bytes);
     writer_newline(writer);
-    // Writer writer = writer_new();
-    // writer_puts(&writer, strlit("*~FLOPPY-TESTICLE~*\n"));
-    // uint32_t test_values[] = {
-    //     0x3F800000,  // 1.0
-    //     0x40000000,  // 2.0
-    //     0x40490FDB,  // 3.1415927 (pi approximation)
-    //     0x3F99999A,  // 1.2
-    //     0x00000000,  // +0.0
-    //     0x80000000,  // -0.0
-    //     0x7F800000,  // +inf
-    //     0xFF800000,  // -inf
-    // };
-    // size_t length = lengthof(test_values);
-    // for (size_t i = 0; i < length; ++i) {
-    //     float flop = *((float *)&test_values[i]);
-    //     writer_puts(&writer, strlit("["));
-    //     writer_number(&writer, i);
-    //     writer_puts(&writer, strlit("] => "));
-    //     writer_floppy(&writer, flop);
-    //     writer_put(&writer, '\n');
+    writer_floppy_info(writer, floater);
+    writer_newline(writer);
+    writer_newline(writer);
+}
+
+void floppy_testicle(Writer *writer) {
+    writer_puts(writer, strlit("*~FLOPPY-TESTICLE~*\n"));
+    floppy_foop(writer, 1.2f);
+    // {
+    //     float floaters[] = {
+    //         1.0f,
+    //         -1.0f,
+    //         2.0f,
+    //         1.75f,
+    //     };
+    //     size_t length = lengthof(floaters);
+    //     for (size_t i = 0; i < length; ++i) {
+    //         floppy_foop(writer, floaters[i]);
+    //     }
     // }
-    // writer_stdout(&writer);
-    // writer_deinit(&writer);
+    // {
+    //     uint32_t datas[] = {
+    //         0x3F800000,  // 1.0
+    //         0x40000000,  // 2.0
+    //         0x40490FDB,  // 3.1415927 (pi approximation)
+    //         0x3F99999A,  // 1.2
+    //         0x00000000,  // +0.0
+    //         0x80000000,  // -0.0
+    //         0x7F800000,  // +inf
+    //         0xFF800000,  // -inf
+    //     };
+    //     size_t length = lengthof(datas);
+    //     for (size_t i = 0; i < length; ++i) {
+    //         float floater = *((float *)&datas[i]);
+    //         floppy_foop(writer, floater);
+    //     }
+    // }
 }
 
 #endif

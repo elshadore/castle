@@ -7,6 +7,7 @@
 #include <stdbool.h>
 #include <assert.h>
 #include <stdarg.h>
+#include <string.h>
 
 typedef struct String_ {
     char *c;
@@ -45,9 +46,11 @@ typedef struct WriterMemOpt_ {
 #define dlog(message_, ...) fprintf(stderr, message_ "\n" __VA_OPT__(,) __VA_ARGS__)
 
 #define dpanic(message_, ...) do { \
-  fprintf(stderr, message_ "\n" __VA_OPT__(,) __VA_ARGS__); \
-  exit(69); \
+    fprintf(stderr, message_ "\n" __VA_OPT__(,) __VA_ARGS__); \
+    exit(69); \
 } while(0)
+
+float compute_fillpc(size_t count, size_t capacity);
 
 void string_reverse_mut(String string);
 size_t grow_capacity(size_t old_capacity);
@@ -55,6 +58,8 @@ size_t djb2_hash(String string);
 size_t index_invert(size_t index, size_t length);
 
 bool string_eq(String a, String b);
+String string_shift(String string);
+String string_shiftn(String string, size_t shift);
 void string_stdout(String string);
 void string_stderr(String string);
 Bytes string_to_bytes(String string);
@@ -77,7 +82,10 @@ void writer_binary(Writer *writer, Bytes bytes);
 void writer_hex_ex(Writer *writer, Bytes bytes, WriterMemOpt opt);
 void writer_binary_ex(Writer *writer, Bytes bytes, WriterMemOpt opt);
 void writer_newline(Writer *writer);
+void writer_tab(Writer *writer);
+void writer_tabn(Writer *writer, size_t count);
 void writer_int(Writer *writer, int integer);
+void __attribute__ ((format (printf, 2, 3))) writer_printf(Writer *writer, const char *format, ...);
 
 void writer_stdout(Writer *writer);
 void writer_stderr(Writer *writer);
@@ -85,9 +93,63 @@ void writer_stderr(Writer *writer);
 #define talloc(type_, count_) (type_ *)malloc(sizeof(type_) * (count_))
 #define trealloc(type_, ptr_, count_) (type_ *)realloc((ptr_), sizeof(type_) * (count_))
 
+#define dynamic_array_grow(type_, array_) do { \
+    if ((array_)->count >= (array_)->capacity) { \
+        size_t new_capacity = grow_capacity((array_)->capacity); \
+        type_ *new_e = (type_ *)realloc((array_)->e, sizeof(type_) * new_capacity); \
+        (array_)->capacity = new_capacity; \
+        (array_)->e = new_e; \
+    } \
+} while(0)
+
+#define dynamic_array_append(type_, array_, item_) do { \
+    dynamic_array_grow(type_, array_);\
+    (array_)->e[(array_->count++)] = item_; \
+} while(0)
+
 #endif
 
 #ifdef SHARED_IMPLEMENTATION
+
+uint64_t next_pow2_u64(uint64_t value) {
+    uint64_t temp = value;
+    temp--;
+	temp |= temp >> 1;
+	temp |= temp >> 2;
+	temp |= temp >> 4;
+	temp |= temp >> 8;
+	temp |= temp >> 16;
+	temp |= temp >> 32;
+	temp++;
+	return temp;
+}
+
+uint32_t next_pow2_u32(uint32_t value) {
+    uint32_t temp = value;
+    temp--;
+	temp |= temp >> 1;
+	temp |= temp >> 2;
+	temp |= temp >> 4;
+	temp |= temp >> 8;
+	temp |= temp >> 16;
+	temp++;
+	return temp;
+}
+
+size_t next_pow2_uword(size_t value) {
+    if (sizeof(size_t) == sizeof(uint64_t)) {
+        return (size_t)next_pow2_u64((uint64_t)value);
+    }
+    if (sizeof(size_t) == sizeof(uint32_t)) {
+        return (size_t)next_pow2_u32((uint32_t)value);
+    }
+    dpanic("unsupported word size of %zu", sizeof(size_t));
+    return 0;
+}
+
+float compute_fillpc(size_t count, size_t capacity) {
+    return (float)count / (float)capacity;
+}
 
 void string_reverse_mut(String string) {
     char *a = string.c;
@@ -131,6 +193,20 @@ bool string_eq(String a, String b) {
         }
     }
     return true;
+}
+
+String string_shift(String string) {
+    return (String) {
+        .c = string.c + 1,
+        .length = string.length - 1,
+    };
+}
+
+String string_shiftn(String string, size_t shift) {
+    return (String) {
+        .c = string.c + shift,
+        .length = string.length - shift,
+    };
 }
 
 void string_stdout(String string) {
@@ -277,12 +353,15 @@ void __attribute__ ((format (printf, 2, 3))) writer_printf(Writer *writer, const
     va_start(ap, format);
     size_t length = vsnprintf(NULL, 0, format, ap);
     va_end(ap);
+    if (length == 0) {
+        return;
+    }
     size_t curr = writer_curr(writer);
     for (size_t i = 0; i < length; ++i) {
         writer_put(writer, '\0');
     }
     va_start(ap, format);
-    (void)vsnprintf(writer->string.c + curr, length, format, ap);
+    (void)vsnprintf(writer->string.c + curr, (length + 1), format, ap);
     va_end(ap);
 }
 
@@ -376,6 +455,16 @@ void writer_binary(Writer *writer, Bytes bytes) {
 
 void writer_newline(Writer *writer) {
     writer_put(writer, '\n');
+}
+
+void writer_tab(Writer *writer) {
+    writer_put(writer, '\t');
+}
+
+void writer_tabn(Writer *writer, size_t count) {
+    for (size_t i = 0; i < count; ++i) {
+        writer_put(writer, '\t');
+    }
 }
 
 void writer_int(Writer *writer, int integer) {
