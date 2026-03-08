@@ -1,2 +1,2 @@
 CompileFlags:
-    Add: [-xc, -std=c99, -Wall, -Wextra, -DFLOPPY_IMPLEMENTATION -DCHAIN_TABLE_IMPLEMENTATION -DSKIP_TABLE_IMPLEMENTATION -DSHARED_IMPLEMENTATION]
+    Add: [-xc, -std=c99, -Wall, -Wextra]

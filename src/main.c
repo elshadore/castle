@@ -1,14 +1,4 @@
-#define FLOPPY_IMPLEMENTATION
-#include "floppy.h"
-
-#define CHAIN_TABLE_IMPLEMENTATION
-#include "chain_table.h"
-
-#define SKIP_TABLE_IMPLEMENTATION
-#include "skip_table.h"
-
-#define SHARED_IMPLEMENTATION
-#include "shared.h"
+#include "all.h"
 
 #define UTF8_BIT (1 << 7)
 

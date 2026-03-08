@@ -1,3 +1,0 @@
-#!/bin/sh
-
-clang -ggdb -O0 -Wall -Wextra ./src/main.c -o ./out/debug
