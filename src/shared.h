@@ -9,6 +9,8 @@
 #include <stdarg.h>
 #include <string.h>
 
+#include "../lib/nob.h"
+
 typedef struct String_ {
     char *c;
     size_t length;

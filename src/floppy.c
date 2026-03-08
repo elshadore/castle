@@ -1,4 +1,4 @@
-#include "floppy.h"
+#include "shared.h"
 
 #define EXP_MASK ((uint32_t)0x7F800000)
 // #define EXP_MASK ((uint32_t)0b01111111100000000000000000000000)
